@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CloseIcon, MenuIcon } from "./icons";
 
-export function MobileMenu({ categories }: { categories: { name: string; slug: string }[] }) {
+export function MobileMenu({ categories, signedIn }: { categories: { name: string; slug: string }[]; signedIn: boolean }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   return (
@@ -22,6 +22,8 @@ export function MobileMenu({ categories }: { categories: { name: string; slug: s
             ))}
             <Link onClick={close} href="/shop?sale=1" className="py-2 text-lg text-sale">Sale</Link>
             <hr className="my-4 border-line" />
+            <Link onClick={close} href={signedIn ? "/account" : "/account/login"} className="py-1.5 text-sm text-muted">{signedIn ? "My account" : "Sign in / Register"}</Link>
+            <Link onClick={close} href="/account/wishlist" className="py-1.5 text-sm text-muted">Wishlist</Link>
             <Link onClick={close} href="/track" className="py-1.5 text-sm text-muted">Track your order</Link>
             <Link onClick={close} href="/size-guide" className="py-1.5 text-sm text-muted">Size guide</Link>
             <Link onClick={close} href="/contact" className="py-1.5 text-sm text-muted">Contact</Link>

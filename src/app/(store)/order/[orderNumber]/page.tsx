@@ -5,6 +5,7 @@ import { getOrderByNumber } from "@/lib/orders";
 import { OrderItemsTable, OrderProgress } from "@/components/order-summary";
 import { formatPrice } from "@/lib/format";
 import { store } from "@/lib/config";
+import { PurchaseTracker } from "./purchase-tracker";
 
 export const metadata: Metadata = { title: "Your order", robots: { index: false } };
 
@@ -32,7 +33,19 @@ export default async function OrderPage(props: PageProps<"/order/[orderNumber]">
             ? `We've received your order. Please keep ${formatPrice(order.total)} ready to pay the courier on delivery. We'll call you on ${order.phone} to confirm.`
             : "Your payment was received and your order is confirmed."}
       </p>
-      {awaitingCard && <Link href={`/pay/${order.orderNumber}`} className="btn mt-5">Pay {formatPrice(order.total)} now</Link>}
+      <div className="mt-5 flex flex-wrap gap-3">
+        {awaitingCard && <Link href={`/pay/${order.orderNumber}`} className="btn">Pay {formatPrice(order.total)} now</Link>}
+        <a href={`/order/${order.orderNumber}/invoice`} className="btn-outline btn-sm">Download invoice (PDF)</a>
+      </div>
+      {(sp.new || (order.paymentMethod === "CARD" && order.paymentStatus === "PAID")) && (
+        <PurchaseTracker
+          orderNumber={order.orderNumber}
+          value={order.total}
+          shipping={order.deliveryFee}
+          coupon={order.couponCode}
+          items={order.items.map((i) => ({ id: i.productId ?? i.id, name: i.productName, price: i.price, quantity: i.quantity }))}
+        />
+      )}
 
       <div className="mt-8"><OrderProgress status={order.status} /></div>
 

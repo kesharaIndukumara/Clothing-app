@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 import { slugify } from "@/lib/format";
 import { deleteImage, saveImage } from "@/lib/uploads";
 import type { ActionState } from "@/components/admin/action-form";
+import { notifyRestocked } from "@/lib/stock-alerts";
 
 const variantSchema = z.object({
   id: z.string().optional(),
@@ -138,6 +139,10 @@ export async function saveProduct(_prev: ActionState, formData: FormData): Promi
     return { error: "Could not save the product. Please try again." };
   }
   await Promise.all(removedImages.map(deleteImage));
+
+  // Email anyone waiting for a size of this product that's now back in stock
+  const variantIds = (await db.query.variants.findMany({ where: eq(t.variants.productId, id!), columns: { id: true } })).map((v) => v.id);
+  await notifyRestocked(variantIds).catch((e) => console.error("Back-in-stock emails failed", e));
 
   revalidatePath("/admin/products");
   redirect(`/admin/products/${id}?${productId ? "saved" : "created"}=${Date.now()}`);

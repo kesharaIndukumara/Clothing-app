@@ -9,6 +9,8 @@ import { requireAdmin } from "@/lib/auth";
 import { RESTOCK_STATUSES, STATUS_LABEL } from "@/lib/order-status";
 import { reserveOrderStock, restockOrder } from "@/lib/stock";
 import type { ActionState } from "@/components/admin/action-form";
+import { orderDeliveredEmail, orderShippedEmail, sendEmail } from "@/lib/email";
+import { notifyRestocked } from "@/lib/stock-alerts";
 
 const statusSchema = z.object({ orderId: z.string(), status: z.enum(ORDER_STATUSES), message: z.string().trim().max(300).optional() });
 
@@ -42,8 +44,18 @@ export async function updateOrderStatus(_prev: ActionState, formData: FormData):
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Could not update status" };
   }
+
+  // Customer emails + back-in-stock alerts (never block the status change)
+  let emailed = false;
+  const order = await db.query.orders.findFirst({ where: eq(t.orders.id, orderId), with: { items: true } });
+  if (order?.email && (status === "SHIPPED" || status === "DELIVERED") && formData.get("notify") === "on") {
+    const mail = status === "SHIPPED" ? orderShippedEmail(order) : orderDeliveredEmail(order);
+    emailed = (await sendEmail({ to: order.email, ...mail })).ok;
+  }
+  if (RESTOCK_STATUSES.includes(status)) await notifyRestocked();
+
   revalidatePath(`/admin/orders/${orderId}`);
-  return { ok: `Status updated to ${STATUS_LABEL[status]}` };
+  return { ok: `Status updated to ${STATUS_LABEL[status]}${emailed ? " · customer emailed" : ""}` };
 }
 
 export async function updatePaymentStatus(_prev: ActionState, formData: FormData): Promise<ActionState> {

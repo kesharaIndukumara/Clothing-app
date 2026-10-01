@@ -38,6 +38,9 @@ export function OrderItemsTable({ order }: { order: FullOrder }) {
       </ul>
       <dl className="mt-3 space-y-1.5 border-t border-line pt-3 text-sm">
         <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatPrice(order.subtotal)}</dd></div>
+        {order.discount > 0 && (
+          <div className="flex justify-between text-accent"><dt>Discount{order.couponCode ? ` (${order.couponCode})` : ""}</dt><dd>−{formatPrice(order.discount)}</dd></div>
+        )}
         <div className="flex justify-between"><dt>Delivery</dt><dd>{order.deliveryFee === 0 ? "Free" : formatPrice(order.deliveryFee)}</dd></div>
         <div className="flex justify-between font-medium"><dt>Total</dt><dd>{formatPrice(order.total)}</dd></div>
       </dl>

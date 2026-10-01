@@ -2,6 +2,9 @@ import { eq } from "drizzle-orm";
 import { db, t } from "@/db";
 import { verifyNotification } from "@/lib/payhere";
 import { restockOrder } from "@/lib/stock";
+import { store } from "@/lib/config";
+import { adminNewOrderEmail, orderConfirmationEmail, sendEmail } from "@/lib/email";
+import { notifyRestocked } from "@/lib/stock-alerts";
 
 // PayHere calls this URL server-to-server after a payment attempt.
 // It must be reachable from the internet (use your real domain, or ngrok while testing).
@@ -33,6 +36,10 @@ export async function POST(req: Request) {
       }).where(eq(t.orders.id, order.id));
       await tx.insert(t.orderEvents).values({ orderId: order.id, message: `Card payment received (PayHere ${f.payment_id})` });
     });
+    const items = await db.query.orderItems.findMany({ where: eq(t.orderItems.orderId, order.id) });
+    const mail = { ...order, items };
+    if (order.email) await sendEmail({ to: order.email, ...orderConfirmationEmail(mail) });
+    await sendEmail({ to: process.env.ADMIN_NOTIFY_EMAIL ?? store.email, ...adminNewOrderEmail(mail) });
   } else if ((status === "-1" || status === "-2") && order.paymentStatus !== "PAID" && order.status === "PENDING") {
     // Cancelled or failed: release the stock
     await db.transaction(async (tx) => {
@@ -40,6 +47,7 @@ export async function POST(req: Request) {
       await restockOrder(tx, order.id);
       await tx.insert(t.orderEvents).values({ orderId: order.id, message: status === "-1" ? "Payment cancelled" : "Payment failed" });
     });
+    await notifyRestocked();
   } else if (status === "-3") {
     await db.update(t.orders).set({ paymentStatus: "REFUNDED" }).where(eq(t.orders.id, order.id));
     await db.insert(t.orderEvents).values({ orderId: order.id, message: "Payment charged back" });

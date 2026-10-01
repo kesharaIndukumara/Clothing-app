@@ -3,6 +3,8 @@ import { CartDrawer } from "@/components/cart-drawer";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { WhatsAppButton } from "@/components/whatsapp-button";
+import { Analytics } from "@/components/analytics";
+import { Suspense } from "react";
 
 export default function StoreLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +14,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
       <Footer />
       <CartDrawer />
       <WhatsAppButton />
+      <Suspense fallback={null}><Analytics /></Suspense>
     </CartProvider>
   );
 }

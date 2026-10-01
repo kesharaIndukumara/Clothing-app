@@ -1,12 +1,17 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/components/cart-context";
 import { Price } from "@/components/price";
+import { WishlistButton } from "@/components/wishlist-button";
 import { SIZES, store } from "@/lib/config";
+import { track } from "@/lib/track";
+import { Stars } from "@/components/stars";
+import { NotifyMe } from "./notify-me";
 
 type Variant = { id: string; size: string; color: string; colorHex: string; stock: number };
 type Props = {
   product: {
+    id: string;
     slug: string;
     name: string;
     price: number;
@@ -16,11 +21,18 @@ type Props = {
     images: string[];
     variants: Variant[];
   };
+  inWishlist: boolean;
+  rating?: { average: number; count: number };
+  defaultEmail?: string;
   children: React.ReactNode;
 };
 
-export function ProductView({ product, children }: Props) {
+export function ProductView({ product, inWishlist, rating, defaultEmail, children }: Props) {
   const { add } = useCart();
+
+  useEffect(() => {
+    track("view_item", { id: product.id, name: product.name, price: product.price });
+  }, [product.id, product.name, product.price]);
   const colors = useMemo(
     () => [...new Map(product.variants.map((v) => [v.color, v.colorHex])).entries()],
     [product.variants],
@@ -55,6 +67,7 @@ export function ProductView({ product, children }: Props) {
       image: product.images[0] ?? null,
       maxStock: selected.stock,
     });
+    track("add_to_cart", { id: product.id, name: product.name, price: product.price, quantity: 1 });
   }
 
   return (
@@ -84,6 +97,11 @@ export function ProductView({ product, children }: Props) {
       <div className="lg:sticky lg:top-28 lg:self-start">
         <h1 className="font-display text-3xl sm:text-4xl">{product.name}</h1>
         <Price price={product.price} compareAt={product.compareAtPrice} className="mt-2 text-lg" />
+        {rating && rating.count > 0 && (
+          <a href="#reviews" className="mt-2 flex items-center gap-2 text-xs text-muted hover:text-ink">
+            <Stars value={rating.average} /> {rating.average.toFixed(1)} · {rating.count} review{rating.count === 1 ? "" : "s"}
+          </a>
+        )}
         <p className="mt-5 leading-relaxed text-ink/80">{product.description}</p>
 
         <div className="mt-7">
@@ -112,11 +130,12 @@ export function ProductView({ product, children }: Props) {
               return (
                 <button
                   key={s}
-                  disabled={out}
+                  disabled={!v}
+                  title={out ? "Sold out. Select to get notified" : undefined}
                   onClick={() => { setSize(s); setError(""); }}
                   className={`h-11 min-w-12 rounded-lg border px-3 text-sm transition ${
                     size === s ? "border-ink bg-ink text-paper" : "border-line bg-card hover:border-ink"
-                  } disabled:cursor-not-allowed disabled:text-muted/50 disabled:line-through`}
+                  } ${out && size !== s ? "text-muted/60 line-through" : ""} disabled:cursor-not-allowed disabled:opacity-40`}
                 >
                   {s}
                 </button>
@@ -129,10 +148,18 @@ export function ProductView({ product, children }: Props) {
           {product.fitNote && <p className="mt-2 text-xs text-muted">{product.fitNote}</p>}
         </div>
 
-        <button onClick={addToBag} disabled={allSoldOut} className="btn mt-7 w-full py-4">
-          {allSoldOut ? "Sold out" : "Add to bag"}
-        </button>
+        {selected && selected.stock <= 0 ? (
+          <NotifyMe key={selected.id} variantId={selected.id} label={`${selected.color} / ${selected.size}`} defaultEmail={defaultEmail} />
+        ) : allSoldOut && !size ? (
+          <div className="mt-7 rounded-xl border border-line bg-card p-4 text-sm">
+            <p className="font-medium">Sold out</p>
+            <p className="mt-1 text-muted">Choose your size above and we&apos;ll email you when it&apos;s back.</p>
+          </div>
+        ) : (
+          <button onClick={addToBag} className="btn mt-7 w-full py-4">Add to bag</button>
+        )}
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+        <div className="mt-3"><WishlistButton productId={product.id} initial={inWishlist} withLabel /></div>
         <a
           href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Hi, I'm interested in "${product.name}". Is it available?`)}`}
           target="_blank"

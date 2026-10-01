@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, count, desc, eq, gte, inArray, lte, notInArray, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, lte, notInArray, sum } from "drizzle-orm";
 import { db, t } from "@/db";
 import { requireAdmin } from "@/lib/auth";
 import { store } from "@/lib/config";
@@ -36,6 +36,11 @@ export default async function Dashboard() {
   const unpaidCod = await db.select({ n: count(), total: sum(t.orders.total) }).from(t.orders)
     .where(and(eq(t.orders.paymentMethod, "COD"), eq(t.orders.paymentStatus, "UNPAID"), eq(t.orders.status, "DELIVERED")));
 
+  const [[pendingReviews], [waiting]] = await Promise.all([
+    db.select({ n: count() }).from(t.reviews).where(eq(t.reviews.status, "PENDING")),
+    db.select({ n: count() }).from(t.stockAlerts).where(isNull(t.stockAlerts.notifiedAt)),
+  ]);
+
   const cards = [
     { label: "Orders today", value: String(todayStats.n), sub: formatPrice(Number(todayStats.total ?? 0)) },
     { label: "Last 30 days", value: formatPrice(Number(monthStats.total ?? 0)), sub: `${monthStats.n} orders` },
@@ -46,6 +51,20 @@ export default async function Dashboard() {
   return (
     <div className="space-y-8">
       <h1 className="font-display text-3xl">Dashboard</h1>
+      {(pendingReviews.n > 0 || waiting.n > 0) && (
+        <div className="flex flex-wrap gap-3 text-sm">
+          {pendingReviews.n > 0 && (
+            <Link href="/admin/reviews" className="rounded-full bg-amber-100 px-4 py-2 text-amber-900 hover:bg-amber-200">
+              {pendingReviews.n} review{pendingReviews.n === 1 ? "" : "s"} waiting for approval →
+            </Link>
+          )}
+          {waiting.n > 0 && (
+            <span className="rounded-full bg-sky-100 px-4 py-2 text-sky-900">
+              {waiting.n} back-in-stock request{waiting.n === 1 ? "" : "s"}. Customers are emailed automatically when you restock.
+            </span>
+          )}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => {
           const inner = (

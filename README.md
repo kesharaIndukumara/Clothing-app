@@ -68,6 +68,41 @@ To remove the demo products: in the admin panel open each product and click **De
 
 ---
 
+## What's included (Phase 2)
+
+| Feature | Where |
+|---|---|
+| **Customer accounts**: sign up, sign in, optional Google login, forgot/reset password | `/account/login`, `/account/register` |
+| **My account**: order history, invoices, saved addresses, wishlist, name and password settings | `/account` |
+| Faster checkout: name, email and default address filled in; addresses saved automatically | `/checkout` |
+| **Wishlist** heart on product pages | `/account/wishlist` |
+| **Reviews** with star rating and up to 3 photos, "Verified buyer" badge, published after admin approval | product page, `/admin/reviews` |
+| **Back-in-stock alerts**: sold-out sizes show "Notify me"; customers are emailed automatically when you restock | product page |
+| **Discount codes**: % off, Rs off or free delivery, with min. spend, usage limit, once per customer and start/end dates | checkout, `/admin/coupons` |
+| **Emails** (Resend): order confirmation, shipped (with tracking no.), delivered + review request, password reset, back in stock, new-order alert to you | automatic |
+| **PDF invoices** | order page, account, admin order page |
+| **Customers list** with orders and total spent | `/admin/customers` |
+| **Google Analytics 4 + Meta Pixel** with ecommerce events (view item, add to cart, begin checkout, purchase) | set IDs in `.env` |
+| **SEO**: `sitemap.xml`, `robots.txt`, product structured data (price, stock, star rating) | automatic |
+
+### Updating an existing install to Phase 2
+```bash
+npm install
+npm run db:migrate   # adds the new tables; your products and orders are kept
+npm run dev
+```
+
+### Setting up the Phase 2 services (all optional in development)
+- **Emails:** create a free account at https://resend.com, verify your domain, then set `RESEND_API_KEY` and `EMAIL_FROM` in `.env`. Until then, every email (including password-reset links) is **printed in the terminal** where `npm run dev` runs.
+- **Google login:** create an OAuth client in Google Cloud Console and add the redirect URI `http://localhost:3000/api/auth/callback/google` (plus your live domain later). Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The button only appears when both are set.
+- **Analytics:** set `NEXT_PUBLIC_GA_ID` (GA4, starts with `G-`) and/or `NEXT_PUBLIC_META_PIXEL_ID`.
+- `NEXT_PUBLIC_SITE_URL` must be the exact address you open the site on (e.g. `http://localhost:3000`, not `127.0.0.1`). Customer sign-in rejects other origins. Values starting with `NEXT_PUBLIC_` are baked in at `npm run build`, so rebuild after changing them.
+
+### How customer auth works
+Customer accounts use **Better Auth** (`src/lib/customer-auth.ts`, route `/api/auth/*`). Passwords are hashed, sessions are stored in the database and sent as httpOnly cookies, and they last 30 days. Resetting a password signs the customer out everywhere. Account pages call `requireCustomer()` on the server. **Admins still use their separate login** (`/admin/login`), so a customer account can never reach the admin panel.
+
+---
+
 ## How the backend works (no separate server)
 
 ```
@@ -152,16 +187,8 @@ Put **Caddy** or **Nginx** in front for HTTPS (Caddy does free certificates auto
 
 ## Roadmap
 
-### Phase 2: after launch
-- Customer accounts (Better Auth): order history, saved addresses, Google login
-- Wishlist
-- Discount coupons
-- Product reviews with photos
-- "Notify me when back in stock"
-- Order emails with Resend (confirmation, shipped)
-- Invoice PDF
-- Google Analytics + Meta Pixel
-- Sitemap.xml and structured data for Google Shopping
+### Phase 2: done ✓
+See "What's included (Phase 2)" above.
 
 ### Phase 3: growth
 - SMS notifications (Notify.lk / Text.lk)

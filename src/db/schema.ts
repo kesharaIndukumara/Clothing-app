@@ -110,7 +110,10 @@ export const orders = sqliteTable(
     city: text("city").notNull(),
     district: text("district").notNull(),
     note: text("note"),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     subtotal: integer("subtotal").notNull(),
+    couponCode: text("coupon_code"),
+    discount: integer("discount").notNull().default(0),
     deliveryFee: integer("delivery_fee").notNull(),
     total: integer("total").notNull(),
     paymentMethod: text("payment_method").$type<PaymentMethod>().notNull(),
@@ -134,6 +137,7 @@ export const orders = sqliteTable(
   (t) => [
     index("orders_status_idx").on(t.status),
     index("orders_phone_idx").on(t.phone),
+    index("orders_user_idx").on(t.userId),
   ],
 );
 
@@ -176,6 +180,141 @@ export const adminUsers = sqliteTable("admin_users", {
   createdAt: createdAt(),
 });
 
+// ---------- Customer accounts (Better Auth) ----------
+// Table and column names follow Better Auth's defaults.
+
+const ts = (name: string) => integer(name, { mode: "timestamp_ms" });
+
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  image: text("image"),
+  createdAt: ts("created_at").notNull().$defaultFn(() => new Date()),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+});
+
+export const session = sqliteTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: ts("expires_at").notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: ts("created_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+});
+
+export const account = sqliteTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: ts("access_token_expires_at"),
+  refreshTokenExpiresAt: ts("refresh_token_expires_at"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: ts("created_at").notNull(),
+  updatedAt: ts("updated_at").notNull(),
+});
+
+export const verification = sqliteTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  createdAt: ts("created_at").$defaultFn(() => new Date()),
+  updatedAt: ts("updated_at").$defaultFn(() => new Date()),
+});
+
+export const addresses = sqliteTable("addresses", {
+  id: id(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  fullName: text("full_name").notNull(),
+  phone: text("phone").notNull(),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  district: text("district").notNull(),
+  isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  createdAt: createdAt(),
+});
+
+export const wishlistItems = sqliteTable(
+  "wishlist_items",
+  {
+    id: id(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("wishlist_unique").on(t.userId, t.productId)],
+);
+
+// ---------- Reviews ----------
+
+export const REVIEW_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+export const reviews = sqliteTable(
+  "reviews",
+  {
+    id: id(),
+    productId: text("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    authorName: text("author_name").notNull(),
+    rating: integer("rating").notNull(),
+    title: text("title").notNull().default(""),
+    body: text("body").notNull(),
+    images: text("images", { mode: "json" }).$type<string[]>().notNull().default([]),
+    sizeBought: text("size_bought"),
+    verifiedPurchase: integer("verified_purchase", { mode: "boolean" }).notNull().default(false),
+    status: text("status").$type<ReviewStatus>().notNull().default("PENDING"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("reviews_product_idx").on(t.productId, t.status),
+    uniqueIndex("reviews_one_per_user").on(t.productId, t.userId),
+  ],
+);
+
+// ---------- Back-in-stock alerts ----------
+
+export const stockAlerts = sqliteTable(
+  "stock_alerts",
+  {
+    id: id(),
+    variantId: text("variant_id").notNull().references(() => variants.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    createdAt: createdAt(),
+    notifiedAt: integer("notified_at", { mode: "timestamp" }),
+  },
+  (t) => [uniqueIndex("stock_alert_unique").on(t.variantId, t.email)],
+);
+
+// ---------- Coupons ----------
+
+export const COUPON_TYPES = ["PERCENT", "FIXED", "FREE_DELIVERY"] as const;
+export type CouponType = (typeof COUPON_TYPES)[number];
+
+export const coupons = sqliteTable("coupons", {
+  id: id(),
+  code: text("code").notNull().unique(), // stored UPPERCASE
+  type: text("type").$type<CouponType>().notNull(),
+  value: integer("value").notNull().default(0), // % for PERCENT, rupees for FIXED
+  minSubtotal: integer("min_subtotal").notNull().default(0),
+  maxUses: integer("max_uses"), // null = unlimited
+  usedCount: integer("used_count").notNull().default(0),
+  onePerCustomer: integer("one_per_customer", { mode: "boolean" }).notNull().default(false),
+  startsAt: integer("starts_at", { mode: "timestamp" }),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+});
+
 // ---------- Relations ----------
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -189,6 +328,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   }),
   images: many(productImages),
   variants: many(variants),
+  reviews: many(reviews),
 }));
 
 export const productImagesRelations = relations(productImages, ({ one }) => ({
@@ -198,16 +338,42 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
   }),
 }));
 
-export const variantsRelations = relations(variants, ({ one }) => ({
+export const variantsRelations = relations(variants, ({ one, many }) => ({
   product: one(products, {
     fields: [variants.productId],
     references: [products.id],
   }),
+  alerts: many(stockAlerts),
 }));
 
-export const ordersRelations = relations(orders, ({ many }) => ({
+export const ordersRelations = relations(orders, ({ one, many }) => ({
   items: many(orderItems),
   events: many(orderEvents),
+  user: one(user, { fields: [orders.userId], references: [user.id] }),
+}));
+
+export const userRelations = relations(user, ({ many }) => ({
+  orders: many(orders),
+  addresses: many(addresses),
+  wishlist: many(wishlistItems),
+}));
+
+export const addressesRelations = relations(addresses, ({ one }) => ({
+  user: one(user, { fields: [addresses.userId], references: [user.id] }),
+}));
+
+export const wishlistRelations = relations(wishlistItems, ({ one }) => ({
+  user: one(user, { fields: [wishlistItems.userId], references: [user.id] }),
+  product: one(products, { fields: [wishlistItems.productId], references: [products.id] }),
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  product: one(products, { fields: [reviews.productId], references: [products.id] }),
+  user: one(user, { fields: [reviews.userId], references: [user.id] }),
+}));
+
+export const stockAlertsRelations = relations(stockAlerts, ({ one }) => ({
+  variant: one(variants, { fields: [stockAlerts.variantId], references: [variants.id] }),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({

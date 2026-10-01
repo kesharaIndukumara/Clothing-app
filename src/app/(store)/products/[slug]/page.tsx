@@ -4,7 +4,14 @@ import { notFound } from "next/navigation";
 import { getProductBySlug, getRelated } from "@/lib/catalog";
 import { ProductCard } from "@/components/product-card";
 import { SizeChart } from "@/components/size-chart";
+import { and, eq } from "drizzle-orm";
+import { db, t } from "@/db";
+import { getCustomer } from "@/lib/customer-auth";
+import { getApprovedReviews, getReviewSummary } from "@/lib/reviews";
+import { siteUrl } from "@/lib/email";
+import { store } from "@/lib/config";
 import { ProductView } from "./product-view";
+import { Reviews } from "./reviews";
 
 export async function generateMetadata(props: PageProps<"/products/[slug]">): Promise<Metadata> {
   const { slug } = await props.params;
@@ -21,7 +28,38 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
   const { slug } = await props.params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
-  const related = await getRelated(product.id, product.categoryId);
+  const [related, customer, summary, reviews] = await Promise.all([
+    getRelated(product.id, product.categoryId),
+    getCustomer(),
+    getReviewSummary(product.id),
+    getApprovedReviews(product.id),
+  ]);
+  const inWishlist = customer
+    ? Boolean(await db.query.wishlistItems.findFirst({ where: and(eq(t.wishlistItems.userId, customer.id), eq(t.wishlistItems.productId, product.id)) }))
+    : false;
+
+  // Structured data so Google can show price, stock and stars in search results
+  const inStock = product.variants.some((v) => v.stock > 0);
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    image: product.images.map((i) => (i.url.startsWith("http") ? i.url : `${siteUrl()}${i.url}`)),
+    sku: product.variants[0]?.sku || product.id,
+    brand: { "@type": "Brand", name: store.name },
+    offers: {
+      "@type": "Offer",
+      url: `${siteUrl()}/products/${product.slug}`,
+      priceCurrency: "LKR",
+      price: product.price,
+      availability: inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+    ...(summary.count > 0 && {
+      aggregateRating: { "@type": "AggregateRating", ratingValue: summary.average.toFixed(1), reviewCount: summary.count },
+    }),
+  };
 
   return (
     <div className="container-x py-8">
@@ -33,8 +71,13 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
         {" / "}<span className="text-ink">{product.name}</span>
       </nav>
 
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <ProductView
+        inWishlist={inWishlist}
+        rating={summary}
+        defaultEmail={customer?.email}
         product={{
+          id: product.id,
           slug: product.slug,
           name: product.name,
           price: product.price,
@@ -73,6 +116,8 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
           </details>
         </div>
       </ProductView>
+
+      <Reviews productId={product.id} summary={summary} reviews={reviews} signedIn={Boolean(customer)} />
 
       {related.length > 0 && (
         <section className="mt-20">

@@ -33,6 +33,7 @@ export default async function OrderDetail(props: PageProps<"/admin/orders/[id]">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-3 py-1 text-xs ${STATUS_STYLE[order.status]}`}>{STATUS_LABEL[order.status]}</span>
           <span className={`rounded-full px-3 py-1 text-xs ${PAYMENT_STYLE[order.paymentStatus]}`}>{order.paymentMethod} · {order.paymentStatus.toLowerCase()}</span>
+          <a href={`/order/${order.orderNumber}/invoice`} target="_blank" className="btn-outline btn-sm">Invoice PDF</a>
           <PrintButton />
         </div>
       </div>
@@ -61,6 +62,9 @@ export default async function OrderDetail(props: PageProps<"/admin/orders/[id]">
             </ul>
             <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
               <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatPrice(order.subtotal)}</dd></div>
+              {order.discount > 0 && (
+                <div className="flex justify-between text-accent"><dt>Discount ({order.couponCode})</dt><dd>−{formatPrice(order.discount)}</dd></div>
+              )}
               <div className="flex justify-between"><dt>Delivery ({order.district})</dt><dd>{formatPrice(order.deliveryFee)}</dd></div>
               <div className="flex justify-between font-medium"><dt>Total {order.paymentMethod === "COD" && order.paymentStatus !== "PAID" && "(collect on delivery)"}</dt><dd>{formatPrice(order.total)}</dd></div>
             </dl>
@@ -79,7 +83,7 @@ export default async function OrderDetail(props: PageProps<"/admin/orders/[id]">
         <div className="space-y-6 print:hidden">
           <section className="rounded-xl border border-line bg-card p-5 text-sm">
             <h2 className="mb-3 font-medium">Customer</h2>
-            <p>{order.customerName}</p>
+            <p>{order.customerName}{order.userId && <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] text-sky-900">Account</span>}</p>
             <p><a href={`tel:${order.phone}`} className="underline">{order.phone}</a> · <a href={`https://wa.me/${waPhone}`} target="_blank" rel="noopener noreferrer" className="underline">WhatsApp</a></p>
             {order.email && <p><a href={`mailto:${order.email}`} className="underline">{order.email}</a></p>}
             <p className="mt-3 text-muted">{order.address}<br />{order.city}, {order.district}</p>
@@ -94,6 +98,11 @@ export default async function OrderDetail(props: PageProps<"/admin/orders/[id]">
                 {ORDER_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
               </select>
               <input name="message" placeholder="Note for history (optional)" className="input" />
+              {order.email && (
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <input type="checkbox" name="notify" defaultChecked className="accent-ink" /> Email the customer when shipped or delivered
+                </label>
+              )}
               <button className="btn btn-sm w-full">Update status</button>
             </ActionForm>
             <p className="mt-3 text-xs text-muted">Cancelling or returning puts the items back in stock. Marking a COD order delivered also marks it paid.</p>
