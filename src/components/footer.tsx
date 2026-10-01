@@ -36,9 +36,9 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-line">
-        <div className="container-x flex flex-col gap-2 py-5 text-xs text-muted sm:flex-row sm:justify-between">
+        <div className="container-x flex flex-col items-center gap-2 pt-5 pb-20 text-center text-xs text-muted sm:flex-row sm:justify-between sm:pb-5 sm:text-left">
           <p>© {new Date().getFullYear()} {store.name}. All rights reserved.</p>
-          <div className="flex gap-4">
+          <div className="flex justify-center gap-4">
             <Link href="/policies/terms">Terms</Link>
             <Link href="/policies/privacy">Privacy</Link>
             <Link href="/about">About</Link>
