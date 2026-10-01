@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #f6f3ee;
+  --color-card: #fffdf9;
+  --color-ink: #1c1a17;
+  --color-muted: #6f6a62;
+  --color-line: #e3ddd2;
+  --color-accent: #b4532a;
+  --color-accent-dark: #93421f;
+  --color-sale: #b4532a;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-ink px-6 py-3 text-sm font-medium transition hover:bg-ink hover:text-paper disabled:opacity-40;
+  }
+  .btn-sm {
+    @apply px-4 py-2 text-xs;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-card px-3.5 py-2.5 text-sm outline-none transition placeholder:text-muted/70 focus:border-ink;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium tracking-wide text-muted uppercase;
+  }
+  .container-x {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+  .prose-store h2 {
+    @apply mt-8 mb-2 font-display text-xl;
+  }
+  .prose-store p, .prose-store li {
+    @apply leading-relaxed text-ink/80;
+  }
+  .prose-store ul {
+    @apply list-disc space-y-1 pl-5;
+  }
+}
